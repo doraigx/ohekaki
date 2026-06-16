@@ -81,7 +81,6 @@
     .invite-alert-box { background-color: #fff3cd; border: 2px dashed #ffc107; padding: 15px; border-radius: 8px; margin-bottom: 20px; color: #856404; text-align: left; }
     .history-card { background: #fafafa; border: 1px solid #eef0f4; padding: 12px; border-radius: 6px; margin-bottom: 8px; font-size: 13px; text-align: left; }
     
-    /* モーダルプロフィールの表示修正 */
     .modal-overlay { position: fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.4); display:flex; justify-content:center; align-items:center; z-index:999; }
   </style>
 </head>
@@ -90,6 +89,7 @@
   <div class="container">
     <div id="loading-status" style="text-align:center; font-weight:bold; color:#666; margin-bottom:10px;">接続チェック中...</div>
 
+    <!-- 招待申し込み通知エリア -->
     <div id="invite-zone" class="invite-alert-box hidden">
       <span id="invite-msg-text">〇〇から対戦申し込みが届きました！</span>
       <div class="flex-group" style="margin-top: 10px;">
@@ -98,12 +98,14 @@
       </div>
     </div>
 
+    <!-- 1. ログイン画面 -->
     <div id="login-screen" class="card hidden" style="text-align: center;">
       <h1>イラスト当てポータル</h1>
       <p>ゲームを始めるにはGoogleアカウントでログインしてください。</p>
       <button id="btn-login">Googleでログイン</button>
     </div>
 
+    <!-- 2. 初回プロフィール登録画面 -->
     <div id="register-screen" class="card hidden" style="text-align: center;">
       <h1>プロフィール登録</h1>
       <p>ユーザーネームを決めてください（ひらがなのみ）</p>
@@ -111,10 +113,12 @@
       <button id="btn-register">登録して次へ</button>
     </div>
 
+    <!-- 3. メインメニュー画面 -->
     <div id="menu-screen" class="hidden">
       <h1>イラスト当てポータル</h1>
       <div class="pc-layout-grid">
         <div class="pc-left-col">
+          <!-- プレイヤー情報 -->
           <div class="card">
             <h3>プレイヤー情報</h3>
             <div style="font-size:16px; font-weight:bold; margin-bottom:12px; display:flex; justify-content:space-between; align-items:center;">
@@ -122,6 +126,7 @@
             </div>
             <button id="btn-to-friend-panel" style="background-color: #9c27b0;">フレンド機能を開く</button>
           </div>
+          <!-- 対戦モード -->
           <div class="card">
             <h3>対戦モード</h3>
             <button id="btn-create-room" style="background-color: #f4b400; margin-bottom:16px;">新しく部屋を作る</button>
@@ -130,12 +135,14 @@
               <button id="btn-join-room">部屋に入る</button>
             </div>
           </div>
+          <!-- フリーモード -->
           <div class="card">
             <h3>フリーモード</h3>
             <button id="btn-free-match" style="background-color: #34a853;">オートマッチング（自動対戦）</button>
           </div>
         </div>
         <div class="pc-right-col">
+          <!-- 直近の勝敗履歴 -->
           <div class="card">
             <h3>📊 直近の勝敗履歴 (5件)</h3>
             <div id="history-list-container">履歴はありません</div>
@@ -144,25 +151,29 @@
       </div>
     </div>
 
+    <!-- 5. フレンド管理画面 -->
     <div id="friend-screen" class="hidden">
       <div class="card" style="text-align: center;">
         <h2>👥 フレンド管理</h2>
         <div id="friend-list-container" class="friend-list">フレンドはいません</div>
         <h3>➕ フレンド検索追加</h3>
         <div class="flex-group" style="margin-bottom: 16px;">
-          <input type="text" id="friend-search-input" placeholder="ユーザーID（UID）を入力" autocomplete="off">
+          <!-- プレースホルダーを名前#四桁に変更 -->
+          <input type="text" id="friend-search-input" placeholder="例: なまえ#1234" autocomplete="off">
           <button id="btn-add-friend" style="background-color: #9c27b0;">追加</button>
         </div>
         <button id="btn-friend-back" style="background-color: #888;">メニューに戻る</button>
       </div>
     </div>
 
+    <!-- 4. ゲームメイン画面 -->
     <div id="game-screen" class="card hidden">
       <h2 id="room-title">部屋ID: ----</h2>
       <div id="game-status" style="font-weight: bold; color: #555; text-align: center; margin-bottom: 15px;">相手の参加を待っています...</div>
       <button id="btn-cancel-invite" class="hidden" style="background-color: #e0a800; margin-bottom: 15px;">対戦申し込みを取り消す</button>
 
       <div id="play-area" class="hidden">
+        <!-- スコアボード -->
         <div class="score-board">
           <span id="score-my">あなた: 0点</span>
           <span style="color:#aaa;">(3点先取)</span>
@@ -172,16 +183,19 @@
         <div id="timer-box" class="timer-display">残り時間: --秒</div>
         <div style="text-align: center;"><div id="role-indicator" class="role-badge">読み込み中...</div></div>
         
+        <!-- 全体共有お絵描きエリア -->
         <div id="canvas-wrapper">
           <canvas id="paint-canvas" class="hidden" width="400" height="400"></canvas>
           <img id="drawing-monitor" class="hidden" src="" alt="相手が描いた絵">
         </div>
 
+        <!-- 1: 書く時間フェーズの提出コントロール -->
         <div id="drawer-phase-control" class="hidden" style="margin-top:15px;">
           <button id="btn-clear-canvas" class="clear-btn" style="width:100%; margin-bottom:12px;">キャンバスをクリア</button>
           <button id="btn-finish-drawing" style="background-color: #e0a800;">お絵描きを終了してお題入力へ</button>
         </div>
 
+        <!-- 2: お題入力フェーズのコントロール（描き手用） -->
         <div id="drawer-odai-input-zone" class="hidden" style="margin-top:15px;">
           <p style="font-size:14px; color:#555; margin:0 0 8px 0; font-weight:bold;">【描き手用】描いた絵のお題を入力（ひらがなのみ）</p>
           <div class="flex-group">
@@ -190,10 +204,12 @@
           </div>
         </div>
 
+        <!-- 3: 回答フェーズ（当てる側用の文字数ドット表示 ＆ ヒントカウンター） -->
         <div id="guess-display-zone" class="hidden" style="margin-top:15px;">
           <div style="font-size:13px; color:#666; text-align:center;" id="hint-remaining-text">ヒント残り総数: 10回 (この問の開示: 0/2)</div>
           <div class="dot-container" id="char-dots-wrapper"></div>
           
+          <!-- 当てる側用の入力コントロール -->
           <div id="guesser-input-zone" class="hidden">
             <div class="flex-group">
               <input type="text" id="guess-input" placeholder="ひらがなで回答を入力" autocomplete="off">
@@ -207,11 +223,13 @@
     </div>
   </div>
 
+  <!-- プロフィール詳細モーダルポップアップ -->
   <div id="profile-modal" class="modal-overlay hidden">
     <div class="card" style="width: 90%; max-width: 350px; text-align: center; box-shadow: 0 4px 20px rgba(0,0,0,0.15);">
       <h2 style="margin-bottom:10px;">👤 プロフィール</h2>
       <p style="font-size:18px; font-weight:bold; margin:8px 0;" id="modal-username">----</p>
-      <p style="font-size:12px; color:#aaa; margin-bottom:20px;" id="modal-uid">ID: ----</p>
+      <!-- UIDコピー用補助ボタンの設置 -->
+      <button id="btn-modal-copy-id" style="background-color: #666; font-size: 11px; padding: 4px 8px; width: auto; margin-bottom: 15px; border-radius: 4px;">IDをコピー</button>
       <button id="btn-modal-add-friend" style="background-color: #9c27b0; margin-bottom:12px;">この人をフレンドに追加</button>
       <button id="btn-modal-close" style="background-color: #888;">閉じる</button>
     </div>
@@ -289,6 +307,7 @@
     const modalUsername = document.getElementById("modal-username");
     const modalUid = document.getElementById("modal-uid");
     const btnModalAddFriend = document.getElementById("btn-modal-add-friend");
+    const btnModalCopyId = document.getElementById("btn-modal-copy-id");
 
     let currentUid = null;
     let activeRoomId = null;
@@ -308,17 +327,20 @@
       return /^[ぁ-んー]+$/.test(str);
     }
 
+    const generateUserTag = () => { return Math.floor(1000 + Math.random() * 9000).toString(); };
+
     onAuthStateChanged(auth, async (user) => {
       if (user) {
         currentUid = user.uid;
         loadingStatus.textContent = "同期チェック中...";
-        // 本番認証トークンバインドの確立を確実に待つ
         await new Promise(resolve => setTimeout(resolve, 300));
         try {
-          const userSnap = await getDoc(doc(db, "users", user.uid));
+          const userRef = doc(db, "users", user.uid);
+          const userSnap = await getDoc(userRef);
           loadingStatus.textContent = "";
           if (userSnap.exists()) {
-            userDisplay.textContent = `プレイヤー: ${userSnap.data().username}`;
+            const userData = userSnap.data();
+            userDisplay.textContent = `プレイヤー: ${userData.username}#${userData.userTag}`;
             showScreen("menu");
             setupFriendsListener();
             setupInviteListener();
@@ -342,16 +364,42 @@
       try { await signInWithPopup(auth, provider); } catch(e) { alert("ログイン失敗"); }
     });
 
+    // ─── 修正：プロフィール登録時の重複なしタグ自動割り当てロジック ───
     document.getElementById("btn-register").addEventListener("click", async () => {
       const name = usernameInput.value.trim();
       if (!name) return alert("名前を入力してください");
       if (!isHiragana(name)) return alert("名前はひらがなだけで入力してください！");
-      await setDoc(doc(db, "users", currentUid), { uid: currentUid, username: name, friends: [] });
-      userDisplay.textContent = `プレイヤー: ${name}`;
-      showScreen("menu");
-      setupFriendsListener();
-      setupInviteListener();
-      loadGlobalHistory();
+      if (name.includes("#")) return alert("名前に'#'は使用できません。");
+
+      loadingStatus.textContent = "識別タグ発行中...";
+      
+      try {
+        let tag = generateUserTag();
+        let isDuplicate = true;
+
+        // 重複チェックループ (同じ名前#タグの組み合わせが完全にいなくなるまでループ)
+        while (isDuplicate) {
+          const q = query(collection(db, "users"), where("username", "==", name), where("userTag", "==", tag));
+          const snap = await getDocs(q);
+          if (snap.empty) {
+            isDuplicate = false; // 被りなし確定
+          } else {
+            tag = generateUserTag(); // 被ったので再生成
+          }
+        }
+
+        await setDoc(doc(db, "users", currentUid), { uid: currentUid, username: name, userTag: tag, friends: [] });
+        userDisplay.textContent = `プレイヤー: ${name}#${tag}`;
+        loadingStatus.textContent = "";
+        showScreen("menu");
+        setupFriendsListener();
+        setupInviteListener();
+        loadGlobalHistory();
+      } catch (e) {
+        console.error(e);
+        alert("登録エラーが発生しました。");
+        loadingStatus.textContent = "";
+      }
     });
 
     document.getElementById("btn-create-room").addEventListener("click", async () => {
@@ -703,11 +751,6 @@
       }
     });
 
-    function initCanvasContext() {
-      if (!ctx.strokeStyle || ctx.strokeStyle === "#000000") {
-        ctx.lineWidth = 4; ctx.lineCap = "round"; ctx.strokeStyle = "#333333";
-      }
-    }
     function getMousePos(canvasDom, e) {
       const rect = canvasDom.getBoundingClientRect();
       const clientX = e.touches ? e.touches[0].clientX : e.clientX;
@@ -754,7 +797,8 @@
             const fData = fSnap.data();
             const fDiv = document.createElement("div");
             fDiv.className = "friend-item";
-            fDiv.innerHTML = `<div>👤 <span class="name-link" id="flink-${fData.uid}">${fData.username}</span></div>`;
+            // ─── 表示を 名前#タグ 形式に変更 ───
+            fDiv.innerHTML = `<div>👤 <span class="name-link" id="flink-${fData.uid}">${fData.username}#${fData.userTag}</span></div>`;
             
             const ivBtn = document.createElement("button");
             ivBtn.className = "btn-invite"; ivBtn.textContent = "対戦申込";
@@ -762,28 +806,63 @@
             fDiv.appendChild(ivBtn);
             friendListContainer.appendChild(fDiv);
 
-            document.getElementById(`flink-${fData.uid}`).addEventListener("click", () => showProfileModal(fData.uid, fData.username));
+            document.getElementById(`flink-${fData.uid}`).addEventListener("click", () => showProfileModal(fData.uid, fData.username, fData.userTag));
           }
         }
       });
     }
 
+    // ─── 修正：UID検索から「名前#4桁のタグ」検索ロジックへアップデート ───
     document.getElementById("btn-add-friend").addEventListener("click", async () => {
-      const target = friendSearchInput.value.trim();
-      if (!target) return;
-      if (target === currentUid) return alert("自分自身は追加できません");
+      const targetInput = friendSearchInput.value.trim();
+      if (!targetInput) return;
+      
+      if (!targetInput.includes("#")) {
+        return alert("正しい形式（例: なまえ#1234）で入力してください。");
+      }
+
+      const parts = targetInput.split("#");
+      const targetName = parts[0].trim();
+      const targetTag = parts[1].trim();
+
       try {
-        const snap = await getDoc(doc(db, "users", target));
-        if (!snap.exists()) return alert("ユーザーが見つかりません");
-        await updateDoc(doc(db, "users", currentUid), { friends: arrayUnion(target) });
-        alert("フレンドを追加しました！"); friendSearchInput.value = "";
-      } catch(e) { console.error(e); }
+        const q = query(collection(db, "users"), where("username", "==", targetName), where("userTag", "==", targetTag));
+        const querySnapshot = await getDocs(q);
+
+        if (querySnapshot.empty) {
+          return alert("指定されたユーザー名とタグに一致するプレイヤーが見つかりませんでした。");
+        }
+
+        let targetUid = null;
+        querySnapshot.forEach((doc) => { targetUid = doc.id; });
+
+        if (targetUid === currentUid) {
+          return alert("自分自身は追加できません");
+        }
+
+        await updateDoc(doc(db, "users", currentUid), { friends: arrayUnion(targetUid) });
+        alert("フレンドを追加しました！");
+        friendSearchInput.value = "";
+      } catch(e) {
+        console.error(e);
+        alert("フレンド追加処理中にエラーが発生しました。");
+      }
     });
 
-    function showProfileModal(uid, username) {
-      modalUsername.textContent = username;
-      modalUid.textContent = `ID: ${uid}`;
-      profileModal.classList.remove("hidden"); // .hiddenを外してモーダルを表示
+    // プロフィール表示モーダル
+    function showProfileModal(uid, username, userTag) {
+      modalUsername.textContent = `${username}#${userTag}`;
+      modalUid.textContent = uid; // コピー用の隠し元データ
+      profileModal.classList.remove("hidden");
+
+      // IDコピーボタンのクリックイベントを設定
+      btnModalCopyId.onclick = () => {
+        navigator.clipboard.writeText(uid).then(() => {
+          alert("ユーザーID(UID)をクリップボードにコピーしました！");
+        }).catch(err => {
+          console.error("コピー失敗:", err);
+        });
+      };
 
       if (uid === currentUid) {
         btnModalAddFriend.classList.add("hidden");
@@ -851,16 +930,18 @@
           
           try {
             const enemySnap = await getDoc(doc(db, "users", enemyId));
-            const enemyName = enemySnap.exists() ? enemySnap.data().username : "不明な対戦相手";
+            const enemyData = enemySnap.data();
+            const enemyName = enemySnap.exists() ? enemyData.username : "不明な対戦相手";
+            const enemyTag = enemySnap.exists() ? enemyData.userTag : "0000";
             const winText = h.winnerUid === currentUid ? "<span style='color:green;font-weight:bold;'>[WIN]</span>" : "<span style='color:red;font-weight:bold;'>[LOSE]</span>";
 
             const hDiv = document.createElement("div");
             hDiv.className = "history-card";
             const uniqueId = Math.random().toString(36).substr(2,4);
-            hDiv.innerHTML = `${winText} vs <span class="name-link" id="hlink-${enemyId}-${uniqueId}">${enemyName}</span>`;
+            hDiv.innerHTML = `${winText} vs <span class="name-link" id="hlink-${enemyId}-${uniqueId}">${enemyName}#${enemyTag}</span>`;
             historyListContainer.appendChild(hDiv);
 
-            hDiv.querySelector(".name-link").addEventListener("click", () => showProfileModal(enemyId, enemyName));
+            hDiv.querySelector(".name-link").addEventListener("click", () => showProfileModal(enemyId, enemyName, enemyTag));
           } catch (err) {
             console.error("履歴内のユーザー取得エラー:", err);
           }
