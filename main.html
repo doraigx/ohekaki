@@ -46,14 +46,12 @@
     .flex-group input { flex: 2; margin-bottom: 0; }
     .flex-group button { flex: 1; padding: 12px; }
 
-    /* お絵描き・ゲーム画面用 */
     .role-badge { display: inline-block; padding: 6px 12px; border-radius: 20px; font-size: 14px; font-weight: bold; margin-bottom: 12px; }
     .drawer-role { background-color: #ffeebe; color: #b76e00; }
     .guesser-role { background-color: #e6f4ea; color: #137333; }
     
     .odai-display { font-size: 24px; font-weight: bold; color: #ea4335; text-align: center; margin: 10px 0; background: #fff5f5; padding: 10px; border-radius: 8px; border: 1px solid #fcedeb; }
     
-    /* キャンバスと画像表示エリア */
     #canvas-wrapper { position: relative; width: 100%; aspect-ratio: 1 / 1; background: #fafafa; border: 2px dashed #ccc; border-radius: 8px; overflow: hidden; box-sizing: border-box; }
     canvas { width: 100%; height: 100%; display: block; cursor: crosshair; touch-action: none; }
     #drawing-monitor { width: 100%; height: 100%; object-fit: contain; display: block; background: #fafafa; }
@@ -130,13 +128,14 @@
     import { getAuth, signInWithPopup, GoogleAuthProvider, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
     import { getFirestore, doc, getDoc, setDoc, updateDoc, arrayUnion, onSnapshot, serverTimestamp, deleteDoc } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
 
+    // ⚠️ 新しい「ohekaki」プロジェクトの認証情報にすべて書き換えてください
     const firebaseConfig = {
-      apiKey: "AIzaSyDFeeG0cXom0TBmUngUDbBf_0CqKVRqKwg",
-      authDomain: "oshiritori.firebaseapp.com",
-      projectId: "oshiritori",
-      storageBucket: "oshiritori.firebasestorage.app",
-      messagingSenderId: "947062662188",
-      appId: "1:947062662188:web:362b7ccff6e01a5ecd9d89"
+      apiKey: "YOUR_OHEKAKI_API_KEY",
+      authDomain: "YOUR_OHEKAKI_AUTH_DOMAIN",
+      projectId: "YOUR_OHEKAKI_PROJECT_ID",
+      storageBucket: "YOUR_OHEKAKI_STORAGE_BUCKET",
+      messagingSenderId: "YOUR_OHEKAKI_MESSAGING_SENDER_ID",
+      appId: "YOUR_OHEKAKI_APP_ID"
     };
 
     const app = initializeApp(firebaseConfig);
@@ -146,7 +145,6 @@
 
     const odaiList = ["ねこ", "いぬ", "りんご", "くるま", "さかな", "ひまわり", "どらえもん", "すいか", "おにぎり", "てれび", "とり", "きのこ"];
 
-    // DOM要素
     const loadingStatus = document.getElementById("loading-status");
     const loginScreen = document.getElementById("login-screen");
     const registerScreen = document.getElementById("register-screen");
@@ -177,11 +175,9 @@
     let countdownInterval = null;
     let remainingTime = 45;
 
-    // お絵描き用変数
     let ctx = null;
     let isDrawing = false;
 
-    // キャンバス初期化関数
     function initContext() {
       if (!ctx) {
         ctx = canvas.getContext("2d");
@@ -191,18 +187,16 @@
       }
     }
 
-    // 認証監視（本番ルールの権限エラーを防止するマージン入り修正版）
     onAuthStateChanged(auth, async (user) => {
-      loadingStatus.textContent = "同期チェック中...";
-      
       if (user) {
         currentUid = user.uid;
+        loadingStatus.textContent = "同期チェック中...";
         
-        // ログイン確定からFirestoreへ権限が浸透するまでのディレイ(100ms)
-        await new Promise(resolve => setTimeout(resolve, 100));
+        await new Promise(resolve => setTimeout(resolve, 200));
 
         try {
-          const userRef = doc(db, "draw_users", user.uid);
+          // コレクション名をシンプルな "users" に統合
+          const userRef = doc(db, "users", user.uid);
           const userSnap = await getDoc(userRef);
           
           loadingStatus.textContent = "";
@@ -215,10 +209,11 @@
           }
         } catch (error) {
           console.error("Firestore接続エラー:", error);
-          loadingStatus.textContent = "権限エラーが発生しました。再ログインしてください。";
+          loadingStatus.textContent = "認証エラー。再試行します...";
           setTimeout(() => {
+            loadingStatus.textContent = "";
             showScreen("login");
-          }, 1500);
+          }, 1000);
         }
       } else {
         currentUid = null;
@@ -227,28 +222,39 @@
       }
     });
 
-    // ログイン処理
     document.getElementById("btn-login").addEventListener("click", async () => {
-      try { await signInWithPopup(auth, provider); } catch (e) { alert("ログイン失敗"); }
+      try { 
+        showScreen(""); 
+        loadingStatus.textContent = "Googleログイン起動中...";
+        await signInWithPopup(auth, provider); 
+      } catch (e) { 
+        console.error(e);
+        loadingStatus.textContent = "";
+        showScreen("login");
+        alert("ログインがキャンセルされたか、失敗しました。"); 
+      }
     });
 
-    // プロフィール登録
     document.getElementById("btn-register").addEventListener("click", async () => {
       const name = usernameInput.value.trim();
       if (!name) return alert("名前を入力してください");
-      await setDoc(doc(db, "draw_users", currentUid), { uid: currentUid, username: name });
-      userDisplay.textContent = `プレイヤー: ${name}`;
-      showScreen("menu");
+      try {
+        await setDoc(doc(db, "users", currentUid), { uid: currentUid, username: name });
+        userDisplay.textContent = `プレイヤー: ${name}`;
+        showScreen("menu");
+      } catch (e) {
+        alert("プロフィールの登録に失敗しました。ルールを確認してください。");
+      }
     });
 
-    // 部屋作成
     document.getElementById("btn-create-room").addEventListener("click", async () => {
       const roomId = Math.floor(1000 + Math.random() * 9000).toString();
       activeRoomId = roomId;
       const randomOdai = odaiList[Math.floor(Math.random() * odaiList.length)];
 
       try {
-        await setDoc(doc(db, "draw_rooms", roomId), {
+        // コレクション名をシンプルな "rooms" に統合
+        await setDoc(doc(db, "rooms", roomId), {
           roomId: roomId,
           status: "waiting",
           players: [currentUid],
@@ -266,11 +272,10 @@
       }
     });
 
-    // 部屋入室
     document.getElementById("btn-join-room").addEventListener("click", async () => {
       const roomId = roomIdInput.value.trim();
       if (!roomId) return alert("部屋IDを入力してください");
-      const roomRef = doc(db, "draw_rooms", roomId);
+      const roomRef = doc(db, "rooms", roomId);
       
       try {
         const roomSnap = await getDoc(roomRef);
@@ -294,7 +299,6 @@
       }
     });
 
-    // タイマー管理
     function startTimer(roomData) {
       clearInterval(countdownInterval);
       remainingTime = 45;
@@ -307,7 +311,7 @@
         if (remainingTime <= 0) {
           clearInterval(countdownInterval);
           if (roomData.drawer === currentUid) {
-            await updateDoc(doc(db, "draw_rooms", activeRoomId), {
+            await updateDoc(doc(db, "rooms", activeRoomId), {
               status: "finished",
               finishReason: `時間切れ！正解は「${roomData.answerWord}」でした。`
             });
@@ -316,10 +320,9 @@
       }, 1000);
     }
 
-    // 部屋情報の監視ループ
     function watchRoom(roomId) {
       if (unsubscribeRoom) unsubscribeRoom();
-      unsubscribeRoom = onSnapshot(doc(db, "draw_rooms", roomId), (snapshot) => {
+      unsubscribeRoom = onSnapshot(doc(db, "rooms", roomId), (snapshot) => {
         if (!snapshot.exists()) return;
         const data = snapshot.data();
 
@@ -379,23 +382,26 @@
       });
     }
 
-    // 回答送信ロジック
     async function handleSendGuess() {
       const guess = guessInput.value.trim();
       if (!guess) return;
 
-      const roomRef = doc(db, "draw_rooms", activeRoomId);
-      const roomSnap = await getDoc(roomRef);
-      const roomData = roomSnap.data();
+      const roomRef = doc(db, "rooms", activeRoomId);
+      try {
+        const roomSnap = await getDoc(roomRef);
+        const roomData = roomSnap.data();
 
-      if (guess === roomData.answerWord) {
-        clearInterval(countdownInterval);
-        await updateDoc(roomRef, {
-          status: "finished",
-          finishReason: `見事正解！正解は「${roomData.answerWord}」でした！🎉`
-        });
-      } else {
-        alert("ザンネン！ハズレです。");
+        if (guess === roomData.answerWord) {
+          clearInterval(countdownInterval);
+          await updateDoc(roomRef, {
+            status: "finished",
+            finishReason: `見事正解！正解は「${roomData.answerWord}」でした！🎉`
+          });
+        } else {
+          alert("ザンネン！ハズレです。");
+        }
+      } catch (e) {
+        console.error(e);
       }
       guessInput.value = "";
     }
@@ -440,9 +446,11 @@
       
       const dataUrl = canvas.toDataURL("image/webp", 0.3);
       if (activeRoomId) {
-        await updateDoc(doc(db, "draw_rooms", activeRoomId), {
-          currentDrawing: dataUrl
-        });
+        try {
+          await updateDoc(doc(db, "rooms", activeRoomId), {
+            currentDrawing: dataUrl
+          });
+        } catch(e) { console.error(e); }
       }
     }
 
@@ -462,7 +470,9 @@
     btnClearCanvas.addEventListener("click", async () => {
       clearCanvas();
       if (activeRoomId) {
-        await updateDoc(doc(db, "draw_rooms", activeRoomId), { currentDrawing: "" });
+        try {
+          await updateDoc(doc(db, "rooms", activeRoomId), { currentDrawing: "" });
+        } catch(e) { console.error(e); }
       }
     });
 
@@ -470,7 +480,7 @@
       clearInterval(countdownInterval);
       countdownInterval = null;
       if (activeRoomId) {
-        const roomRef = doc(db, "draw_rooms", activeRoomId);
+        const roomRef = doc(db, "rooms", activeRoomId);
         try {
           await updateDoc(roomRef, {
             status: "finished",
