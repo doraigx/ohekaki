@@ -128,14 +128,15 @@
     import { getAuth, signInWithPopup, GoogleAuthProvider, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
     import { getFirestore, doc, getDoc, setDoc, updateDoc, arrayUnion, onSnapshot, serverTimestamp, deleteDoc } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
 
-    // ⚠️ 新しい「ohekaki」プロジェクトの認証情報にすべて書き換えてください
+    // ─── 修正：お送りいただいた正しいohekakiプロジェクトのキーを設定 ───
     const firebaseConfig = {
-      apiKey: "YOUR_OHEKAKI_API_KEY",
-      authDomain: "YOUR_OHEKAKI_AUTH_DOMAIN",
-      projectId: "YOUR_OHEKAKI_PROJECT_ID",
-      storageBucket: "YOUR_OHEKAKI_STORAGE_BUCKET",
-      messagingSenderId: "YOUR_OHEKAKI_MESSAGING_SENDER_ID",
-      appId: "YOUR_OHEKAKI_APP_ID"
+      apiKey: "AIzaSyCDh_z0Ol_Dc0wDz3e1NTAnUYVbF3AgQCw",
+      authDomain: "ohekaki.firebaseapp.com",
+      projectId: "ohekaki",
+      storageBucket: "ohekaki.firebasestorage.app",
+      messagingSenderId: "835719435378",
+      appId: "1:835719435378:web:6dccc98680a63e1f775eeb",
+      measurementId: "G-9TJ9SNFVX1"
     };
 
     const app = initializeApp(firebaseConfig);
@@ -195,7 +196,6 @@
         await new Promise(resolve => setTimeout(resolve, 200));
 
         try {
-          // コレクション名をシンプルな "users" に統合
           const userRef = doc(db, "users", user.uid);
           const userSnap = await getDoc(userRef);
           
@@ -253,7 +253,6 @@
       const randomOdai = odaiList[Math.floor(Math.random() * odaiList.length)];
 
       try {
-        // コレクション名をシンプルな "rooms" に統合
         await setDoc(doc(db, "rooms", roomId), {
           roomId: roomId,
           status: "waiting",
