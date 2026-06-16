@@ -177,7 +177,7 @@
     let countdownInterval = null;
     let remainingTime = 45;
 
-    // お絵描き用変数（初期化タイミングを遅らせる修正）
+    // お絵描き用変数
     let ctx = null;
     let isDrawing = false;
 
@@ -191,13 +191,22 @@
       }
     }
 
-    // 認証監視
+    // 認証監視（本番ルールの権限エラーを防止するマージン入り修正版）
     onAuthStateChanged(auth, async (user) => {
-      loadingStatus.textContent = "";
+      loadingStatus.textContent = "同期チェック中...";
+      
       if (user) {
         currentUid = user.uid;
+        
+        // ログイン確定からFirestoreへ権限が浸透するまでのディレイ(100ms)
+        await new Promise(resolve => setTimeout(resolve, 100));
+
         try {
-          const userSnap = await getDoc(doc(db, "draw_users", user.uid));
+          const userRef = doc(db, "draw_users", user.uid);
+          const userSnap = await getDoc(userRef);
+          
+          loadingStatus.textContent = "";
+
           if (userSnap.exists()) {
             userDisplay.textContent = `プレイヤー: ${userSnap.data().username}`;
             showScreen("menu");
@@ -206,11 +215,14 @@
           }
         } catch (error) {
           console.error("Firestore接続エラー:", error);
-          alert("データの取得に失敗しました。Firestoreのセキュリティルールを確認してください。");
-          showScreen("login");
+          loadingStatus.textContent = "権限エラーが発生しました。再ログインしてください。";
+          setTimeout(() => {
+            showScreen("login");
+          }, 1500);
         }
       } else {
         currentUid = null;
+        loadingStatus.textContent = "";
         showScreen("login");
       }
     });
@@ -326,7 +338,7 @@
           }
 
           if (data.drawer === currentUid) {
-            initContext(); // 画面に表示されるここで安全に初期化
+            initContext();
             roleIndicator.textContent = "あなたは【描き手】です！";
             roleIndicator.className = "role-badge drawer-role";
             odaiZone.classList.remove("hidden");
