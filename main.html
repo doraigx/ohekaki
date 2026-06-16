@@ -593,7 +593,7 @@
             }
           }
 
-          // ─── フェーズ3: 回答タイム（バグ修正完了版） ───
+          // ─── フェーズ3: 回答タイム ───
           else if (data.gamePhase === "guessing") {
             manageLocalTimer(data, 45);
             isCanvasLocked = true;
@@ -639,12 +639,16 @@
             if (isDrawer) {
               roleIndicator.textContent = `フェーズ: 相手が回答中... お題: [ ${data.answerWord} ]`;
               roleIndicator.className = "role-badge drawer-role";
-              canvas.classList.remove("hidden"); drawingMonitor.classList.add("hidden"); // 描き手は自分のキャンバス
+              canvas.classList.remove("hidden"); drawingMonitor.classList.add("hidden");
               guesserInputZone.classList.add("hidden");
             } else {
               roleIndicator.textContent = "フェーズ: 答えを当ててください！";
               roleIndicator.className = "role-badge guesser-role";
-              canvas.classList.add("hidden"); drawingMonitor.classList.remove("hidden"); // ★当てる側はモニターを強制100%可視化
+              
+              // ─── 【バグ修正点】クラス割り当てを最優先でリセットしてモニターを確実に強制可視化 ───
+              canvas.setAttribute("class", "hidden");
+              drawingMonitor.removeAttribute("class"); 
+              
               guesserInputZone.classList.remove("hidden");
               if (data.currentDrawing) {
                 drawingMonitor.src = data.currentDrawing;
@@ -685,8 +689,12 @@
           clearInterval(countdownInterval); countdownInterval = null;
           if (roomData.drawer === currentUid) {
             const roomRef = doc(db, "rooms", activeRoomId);
+            
+            // タイムアップ時も、描き手の場合は現在の絵のURLを確実にセーブしてからフェーズ移行するガードを適用
+            const dataUrl = canvas.toDataURL("image/webp", 0.3);
+            
             if (roomData.gamePhase === "drawing") {
-              await updateDoc(roomRef, { gamePhase: "naming" });
+              await updateDoc(roomRef, { gamePhase: "naming", currentDrawing: dataUrl });
             } 
             else if (roomData.gamePhase === "naming") {
               await proceedToNextTurn(roomRef, roomData, "お題が未入力（時間切れ）だったため次のターンへ");
@@ -711,9 +719,14 @@
       clearInterval(countdownInterval); countdownInterval = null;
     }
 
+    // ─── 【重要修正】「お絵描きを終了してお題入力へ」ボタンが押された瞬間に現在の画データを確実にFirestoreに上書き同期 ───
     btnFinishDrawing.addEventListener("click", async () => {
       clearInterval(countdownInterval); countdownInterval = null;
-      await updateDoc(doc(db, "rooms", activeRoomId), { gamePhase: "naming" });
+      const dataUrl = canvas.toDataURL("image/webp", 0.3);
+      await updateDoc(doc(db, "rooms", activeRoomId), { 
+        currentDrawing: dataUrl,
+        gamePhase: "naming" 
+      });
     });
 
     btnSubmitOdai.addEventListener("click", async () => {
@@ -887,14 +900,12 @@
       }
     });
 
-    // ─── 修正：プロフィールモーダルでのイベント上書きバグを完全解決 ───
     function showProfileModal(uid, username, userTag) {
       const safeTag = userTag || "0000";
       modalUsername.textContent = `${username}#${safeTag}`;
       modalUid.textContent = uid;
       profileModal.classList.remove("hidden");
 
-      // IDコピー処理のバインド
       btnModalCopyId.onclick = () => {
         navigator.clipboard.writeText(uid).then(() => {
           alert("ユーザーID(UID)をクリップボードにコピーしました！");
@@ -908,7 +919,6 @@
       } else {
         btnModalAddFriend.classList.remove("hidden");
         
-        // ★最重要修正: onclickの古いバインドを上書きクリアして、完全に新規登録する
         btnModalAddFriend.onclick = async () => {
           try {
             await updateDoc(doc(db, "users", currentUid), { friends: arrayUnion(uid) });
