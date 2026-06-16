@@ -90,6 +90,7 @@
   <div class="container">
     <div id="loading-status" style="text-align:center; font-weight:bold; color:#666; margin-bottom:10px;">接続チェック中...</div>
 
+    <!-- 招待申し込み通知エリア -->
     <div id="invite-zone" class="invite-alert-box hidden">
       <span id="invite-msg-text">〇〇から対戦申し込みが届きました！</span>
       <div class="flex-group" style="margin-top: 10px;">
@@ -98,12 +99,14 @@
       </div>
     </div>
 
+    <!-- 1. ログイン画面 -->
     <div id="login-screen" class="card hidden" style="text-align: center;">
       <h1>イラスト当てポータル</h1>
       <p>ゲームを始めるにはGoogleアカウントでログインしてください。</p>
       <button id="btn-login">Googleでログイン</button>
     </div>
 
+    <!-- 2. 初回プロフィール登録画面 -->
     <div id="register-screen" class="card hidden" style="text-align: center;">
       <h1>プロフィール登録</h1>
       <p>ユーザーネームを決めてください（ひらがなのみ）</p>
@@ -111,10 +114,12 @@
       <button id="btn-register">登録して次へ</button>
     </div>
 
+    <!-- 3. メインメニュー画面 -->
     <div id="menu-screen" class="hidden">
       <h1>イラスト当てポータル</h1>
       <div class="pc-layout-grid">
         <div class="pc-left-col">
+          <!-- プレイヤー情報 -->
           <div class="card">
             <h3>プレイヤー情報</h3>
             <div style="font-size:16px; font-weight:bold; margin-bottom:12px; display:flex; justify-content:space-between; align-items:center;">
@@ -122,6 +127,7 @@
             </div>
             <button id="btn-to-friend-panel" style="background-color: #9c27b0;">フレンド機能を開く</button>
           </div>
+          <!-- 対戦モード -->
           <div class="card">
             <h3>対戦モード</h3>
             <button id="btn-create-room" style="background-color: #f4b400; margin-bottom:16px;">新しく部屋を作る</button>
@@ -130,12 +136,14 @@
               <button id="btn-join-room">部屋に入る</button>
             </div>
           </div>
+          <!-- フリーモード -->
           <div class="card">
             <h3>フリーモード</h3>
             <button id="btn-free-match" style="background-color: #34a853;">オートマッチング（自動対戦）</button>
           </div>
         </div>
         <div class="pc-right-col">
+          <!-- 直近の勝敗履歴 -->
           <div class="card">
             <h3>📊 直近の勝敗履歴 (5件)</h3>
             <div id="history-list-container">履歴はありません</div>
@@ -144,6 +152,7 @@
       </div>
     </div>
 
+    <!-- 5. フレンド管理画面 -->
     <div id="friend-screen" class="hidden">
       <div class="card" style="text-align: center;">
         <h2>👥 フレンド管理</h2>
@@ -157,12 +166,14 @@
       </div>
     </div>
 
+    <!-- 4. ゲームメイン画面 -->
     <div id="game-screen" class="card hidden">
       <h2 id="room-title">部屋ID: ----</h2>
       <div id="game-status" style="font-weight: bold; color: #555; text-align: center; margin-bottom: 15px;">相手の参加を待っています...</div>
       <button id="btn-cancel-invite" class="hidden" style="background-color: #e0a800; margin-bottom: 15px;">対戦申し込みを取り消す</button>
 
       <div id="play-area" class="hidden">
+        <!-- スコアボード -->
         <div class="score-board">
           <span id="score-my">あなた: 0点</span>
           <span style="color:#aaa;">(3点先取)</span>
@@ -172,16 +183,19 @@
         <div id="timer-box" class="timer-display">残り時間: --秒</div>
         <div style="text-align: center;"><div id="role-indicator" class="role-badge">読み込み中...</div></div>
         
+        <!-- 全体共有お絵描きエリア -->
         <div id="canvas-wrapper">
           <canvas id="paint-canvas" class="hidden" width="400" height="400"></canvas>
           <img id="drawing-monitor" class="hidden" src="" alt="相手が描いた絵">
         </div>
 
+        <!-- 1: 書く時間フェーズの提出コントロール -->
         <div id="drawer-phase-control" class="hidden" style="margin-top:15px;">
           <button id="btn-clear-canvas" class="clear-btn" style="width:100%; margin-bottom:12px;">キャンバスをクリア</button>
           <button id="btn-finish-drawing" style="background-color: #e0a800;">お絵描きを終了してお題入力へ</button>
         </div>
 
+        <!-- 2: お題入力フェーズのコントロール（描き手用） -->
         <div id="drawer-odai-input-zone" class="hidden" style="margin-top:15px;">
           <p style="font-size:14px; color:#555; margin:0 0 8px 0; font-weight:bold;">【描き手用】描いた絵のお題を入力（ひらがなのみ）</p>
           <div class="flex-group">
@@ -190,10 +204,12 @@
           </div>
         </div>
 
+        <!-- 3: 回答フェーズ（当てる側用の文字数ドット表示 ＆ ヒントカウンター） -->
         <div id="guess-display-zone" class="hidden" style="margin-top:15px;">
           <div style="font-size:13px; color:#666; text-align:center;" id="hint-remaining-text">ヒント残り総数: 10回</div>
           <div class="dot-container" id="char-dots-wrapper"></div>
           
+          <!-- 当てる側用の入力コントロール -->
           <div id="guesser-input-zone" class="hidden">
             <div class="flex-group">
               <input type="text" id="guess-input" placeholder="ひらがなで回答を入力" autocomplete="off">
@@ -207,6 +223,7 @@
     </div>
   </div>
 
+  <!-- プロフィール詳細モーダルポップアップ -->
   <div id="profile-modal" class="modal-overlay hidden">
     <div class="card" style="width: 90%; max-width: 350px; text-align: center; box-shadow: 0 4px 20px rgba(0,0,0,0.15);">
       <h2 style="margin-bottom:10px;">👤 プロフィール</h2>
@@ -304,7 +321,7 @@
 
     const ctx = canvas.getContext("2d");
     let isDrawing = false;
-    let isCanvasLocked = false; // ★追加：回答タイム中の上描きを禁止するロックフラグ
+    let isCanvasLocked = false;
 
     function isHiragana(str) {
       return /^[ぁ-んー]+$/.test(str);
@@ -536,7 +553,7 @@
           // ─── フェーズ1: お絵描き時間 ───
           if (data.gamePhase === "drawing") {
             manageLocalTimer(data, 45);
-            isCanvasLocked = false; // お絵描き開始なのでロック解除
+            isCanvasLocked = false;
             
             if (isDrawer) {
               roleIndicator.textContent = "フェーズ: あなたが絵を描く時間です！";
@@ -558,28 +575,28 @@
           // ─── フェーズ2: お題入力時間 ───
           else if (data.gamePhase === "naming") {
             manageLocalTimer(data, 20);
-            isCanvasLocked = true; // ★お絵描き終了したためキャンバスをロック！
+            isCanvasLocked = true;
             
             if (isDrawer) {
               roleIndicator.textContent = "フェーズ: 描いた絵の答え(お題)を入力してください";
               roleIndicator.className = "role-badge drawer-role";
-              canvas.classList.remove("hidden"); drawingMonitor.classList.add("hidden"); // 描き手は自分のキャンバスを見せる
+              canvas.classList.remove("hidden"); drawingMonitor.classList.add("hidden");
               drawerPhaseControl.classList.add("hidden");
               drawerOdaiInputZone.classList.remove("hidden"); guessDisplayZone.classList.add("hidden");
             } else {
               roleIndicator.textContent = "フェーズ: 相手がお題を考えて入力しています...";
               roleIndicator.className = "role-badge guesser-role";
-              canvas.classList.add("hidden"); drawingMonitor.classList.remove("hidden"); // 当てる側はモニターを見せる
+              canvas.classList.add("hidden"); drawingMonitor.classList.remove("hidden");
               drawerPhaseControl.classList.add("hidden");
               drawerOdaiInputZone.classList.add("hidden"); guessDisplayZone.classList.add("hidden");
               drawingMonitor.src = data.currentDrawing;
             }
           }
 
-          // ─── フェーズ3: 回答タイム（バグ修正・完全可視化） ───
+          // ─── フェーズ3: 回答タイム（バグ修正完了版） ───
           else if (data.gamePhase === "guessing") {
             manageLocalTimer(data, 45);
-            isCanvasLocked = true; // ★回答タイム中もキャンバスを完全ロック！
+            isCanvasLocked = true;
             
             drawerPhaseControl.classList.add("hidden");
             drawerOdaiInputZone.classList.add("hidden");
@@ -619,16 +636,15 @@
               charDotsWrapper.appendChild(dotEl);
             }
 
-            // 【重要修正】回答フェーズ時のキャンバス・画像モニターの表示不具合を完全解決
             if (isDrawer) {
               roleIndicator.textContent = `フェーズ: 相手が回答中... お題: [ ${data.answerWord} ]`;
               roleIndicator.className = "role-badge drawer-role";
-              canvas.classList.remove("hidden"); drawingMonitor.classList.add("hidden"); // ★描き手側は「自分の絵(キャンバス)」をそのまま表示
+              canvas.classList.remove("hidden"); drawingMonitor.classList.add("hidden"); // 描き手は自分のキャンバス
               guesserInputZone.classList.add("hidden");
             } else {
               roleIndicator.textContent = "フェーズ: 答えを当ててください！";
               roleIndicator.className = "role-badge guesser-role";
-              canvas.classList.add("hidden"); drawingMonitor.classList.remove("hidden"); // ★当てる側は「相手の絵(モニター)」を確実に100%表示！
+              canvas.classList.add("hidden"); drawingMonitor.classList.remove("hidden"); // ★当てる側はモニターを強制100%可視化
               guesserInputZone.classList.remove("hidden");
               if (data.currentDrawing) {
                 drawingMonitor.src = data.currentDrawing;
@@ -771,7 +787,6 @@
       };
     }
     
-    // ★修正：お絵描きイベントに isCanvasLocked (ロックフラグ) によるガードを追加
     canvas.addEventListener("mousedown", (e) => { 
       if (isCanvasLocked) return;
       isDrawing = true; const p = getMousePos(canvas, e); ctx.beginPath(); ctx.moveTo(p.x, p.y); 
@@ -800,7 +815,7 @@
 
     function clearLocalCanvas() { ctx.clearRect(0, 0, canvas.width, canvas.height); }
     btnClearCanvas.addEventListener("click", async () => {
-      if (isCanvasLocked) return; // ロック中なら全消しも禁止
+      if (isCanvasLocked) return;
       clearLocalCanvas();
       if (activeRoomId) await updateDoc(doc(db, "rooms", activeRoomId), { currentDrawing: "" });
     });
@@ -872,12 +887,14 @@
       }
     });
 
+    // ─── 修正：プロフィールモーダルでのイベント上書きバグを完全解決 ───
     function showProfileModal(uid, username, userTag) {
       const safeTag = userTag || "0000";
       modalUsername.textContent = `${username}#${safeTag}`;
       modalUid.textContent = uid;
       profileModal.classList.remove("hidden");
 
+      // IDコピー処理のバインド
       btnModalCopyId.onclick = () => {
         navigator.clipboard.writeText(uid).then(() => {
           alert("ユーザーID(UID)をクリップボードにコピーしました！");
@@ -890,10 +907,17 @@
         btnModalAddFriend.classList.add("hidden");
       } else {
         btnModalAddFriend.classList.remove("hidden");
+        
+        // ★最重要修正: onclickの古いバインドを上書きクリアして、完全に新規登録する
         btnModalAddFriend.onclick = async () => {
-          await updateDoc(doc(db, "users", currentUid), { friends: arrayUnion(uid) });
-          alert("フレンドに追加しました！");
-          profileModal.classList.add("hidden");
+          try {
+            await updateDoc(doc(db, "users", currentUid), { friends: arrayUnion(uid) });
+            alert(`「${username}#${safeTag}」をフレンドに追加しました！`);
+            profileModal.classList.add("hidden");
+          } catch (err) {
+            console.error(err);
+            alert("フレンド追加に失敗しました。");
+          }
         };
       }
     }
