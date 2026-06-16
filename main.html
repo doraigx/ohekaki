@@ -73,7 +73,7 @@
       transition: background-color 0.2s;
     }
     .char-dot.revealed { background-color: #d4edda; border-color: #28a745; cursor: default; }
-    .char-dot.drawer-view { cursor: default !important; } /* 描き手用のドットはクリック無効化 */
+    .char-dot.drawer-view { cursor: default !important; }
 
     .friend-list { text-align: left; background: #f9f9f9; padding: 10px; border-radius: 6px; max-height: 200px; overflow-y: auto; margin-bottom: 15px; border: 1px solid #eee; }
     .friend-item { display: flex; justify-content: space-between; align-items: center; padding: 8px 0; border-bottom: 1px solid #eee; font-size: 14px; }
@@ -304,6 +304,7 @@
 
     const ctx = canvas.getContext("2d");
     let isDrawing = false;
+    let isCanvasLocked = false; // ★追加：回答タイム中の上描きを禁止するロックフラグ
 
     function isHiragana(str) {
       return /^[ぁ-んー]+$/.test(str);
@@ -311,7 +312,6 @@
 
     const generateUserTag = () => { return Math.floor(1000 + Math.random() * 9000).toString(); };
 
-    // 認証同期監視
     onAuthStateChanged(auth, async (user) => {
       if (user) {
         currentUid = user.uid;
@@ -323,7 +323,6 @@
           loadingStatus.textContent = "";
           if (userSnap.exists()) {
             const userData = userSnap.data();
-            // ★修正: タグがない古いユーザーデータ対応
             const safeTag = userData.userTag || "0000";
             userDisplay.textContent = `プレイヤー: ${userData.username}#${safeTag}`;
             showScreen("menu");
@@ -534,8 +533,11 @@
 
           const isDrawer = data.drawer === currentUid;
 
+          // ─── フェーズ1: お絵描き時間 ───
           if (data.gamePhase === "drawing") {
             manageLocalTimer(data, 45);
+            isCanvasLocked = false; // お絵描き開始なのでロック解除
+            
             if (isDrawer) {
               roleIndicator.textContent = "フェーズ: あなたが絵を描く時間です！";
               roleIndicator.className = "role-badge drawer-role";
@@ -553,9 +555,455 @@
             }
           }
 
+          // ─── フェーズ2: お題入力時間 ───
           else if (data.gamePhase === "naming") {
             manageLocalTimer(data, 20);
+            isCanvasLocked = true; // ★お絵描き終了したためキャンバスをロック！
+            
             if (isDrawer) {
               roleIndicator.textContent = "フェーズ: 描いた絵の答え(お題)を入力してください";
               roleIndicator.className = "role-badge drawer-role";
-              drawerPhase
+              canvas.classList.remove("hidden"); drawingMonitor.classList.add("hidden"); // 描き手は自分のキャンバスを見せる
+              drawerPhaseControl.classList.add("hidden");
+              drawerOdaiInputZone.classList.remove("hidden"); guessDisplayZone.classList.add("hidden");
+            } else {
+              roleIndicator.textContent = "フェーズ: 相手がお題を考えて入力しています...";
+              roleIndicator.className = "role-badge guesser-role";
+              canvas.classList.add("hidden"); drawingMonitor.classList.remove("hidden"); // 当てる側はモニターを見せる
+              drawerPhaseControl.classList.add("hidden");
+              drawerOdaiInputZone.classList.add("hidden"); guessDisplayZone.classList.add("hidden");
+              drawingMonitor.src = data.currentDrawing;
+            }
+          }
+
+          // ─── フェーズ3: 回答タイム（バグ修正・完全可視化） ───
+          else if (data.gamePhase === "guessing") {
+            manageLocalTimer(data, 45);
+            isCanvasLocked = true; // ★回答タイム中もキャンバスを完全ロック！
+            
+            drawerPhaseControl.classList.add("hidden");
+            drawerOdaiInputZone.classList.add("hidden");
+            guessDisplayZone.classList.remove("hidden");
+
+            const targetHintUid = isDrawer ? enemyUid : currentUid;
+            const totalUsed = data.hintsUsedTotal[targetHintUid] || 0;
+            const thisQuestionRevealedCount = data.hintsRevealedIndexes ? data.hintsRevealedIndexes.filter(h => h.uid === targetHintUid).length : 0;
+            
+            if (isDrawer) {
+              hintRemainingText.textContent = `相手がこのお題で開示した数: ${thisQuestionRevealedCount}/2 (相手の総残り数: ${10 - totalUsed}回)`;
+            } else {
+              hintRemainingText.textContent = `ヒント総残り数: ${10 - totalUsed}回 (この問題での開示数: ${thisQuestionRevealedCount}/2)`;
+            }
+
+            charDotsWrapper.innerHTML = "";
+            const wordLength = data.answerWord.length;
+
+            for (let i = 0; i < wordLength; i++) {
+              const dotEl = document.createElement("div");
+              dotEl.className = "char-dot";
+
+              const lookupUid = isDrawer ? enemyUid : currentUid;
+              const isRevealed = data.hintsRevealedIndexes && data.hintsRevealedIndexes.some(h => h.uid === lookupUid && h.idx === i);
+              
+              if (isRevealed) {
+                dotEl.textContent = data.answerWord.charAt(i);
+                dotEl.classList.add("revealed");
+              } else {
+                dotEl.textContent = "・";
+                if (!isDrawer) {
+                  dotEl.addEventListener("click", () => requestHintOpen(i, totalUsed, thisQuestionRevealedCount, data));
+                } else {
+                  dotEl.classList.add("drawer-view");
+                }
+              }
+              charDotsWrapper.appendChild(dotEl);
+            }
+
+            // 【重要修正】回答フェーズ時のキャンバス・画像モニターの表示不具合を完全解決
+            if (isDrawer) {
+              roleIndicator.textContent = `フェーズ: 相手が回答中... お題: [ ${data.answerWord} ]`;
+              roleIndicator.className = "role-badge drawer-role";
+              canvas.classList.remove("hidden"); drawingMonitor.classList.add("hidden"); // ★描き手側は「自分の絵(キャンバス)」をそのまま表示
+              guesserInputZone.classList.add("hidden");
+            } else {
+              roleIndicator.textContent = "フェーズ: 答えを当ててください！";
+              roleIndicator.className = "role-badge guesser-role";
+              canvas.classList.add("hidden"); drawingMonitor.classList.remove("hidden"); // ★当てる側は「相手の絵(モニター)」を確実に100%表示！
+              guesserInputZone.classList.remove("hidden");
+              if (data.currentDrawing) {
+                drawingMonitor.src = data.currentDrawing;
+              }
+            }
+          }
+        }
+
+        else if (data.status === "finished") {
+          clearInterval(countdownInterval); countdownInterval = null;
+          if (unsubscribeRoom) { unsubscribeRoom(); unsubscribeRoom = null; }
+          
+          if (data.finishReason !== "CANCELED") {
+            alert(`【マッチ終了】\n${data.finishReason}`);
+            if (data.winnerUid && data.players.includes(currentUid) && data.players[0] === currentUid) {
+              try {
+                setDoc(doc(collection(db, "histories")), {
+                  uids: data.players, winnerUid: data.winnerUid, timestamp: serverTimestamp()
+                });
+              } catch(err) { console.error(err); }
+            }
+          }
+          activeRoomId = null; clearLocalCanvas(); showScreen("menu");
+        }
+      });
+    }
+
+    function manageLocalTimer(roomData, duration) {
+      if (countdownInterval) return;
+      remainingTime = duration;
+      timerBox.textContent = `残り時間: ${remainingTime}秒`;
+
+      countdownInterval = setInterval(async () => {
+        remainingTime--;
+        timerBox.textContent = `残り時間: ${remainingTime}秒`;
+
+        if (remainingTime <= 0) {
+          clearInterval(countdownInterval); countdownInterval = null;
+          if (roomData.drawer === currentUid) {
+            const roomRef = doc(db, "rooms", activeRoomId);
+            if (roomData.gamePhase === "drawing") {
+              await updateDoc(roomRef, { gamePhase: "naming" });
+            } 
+            else if (roomData.gamePhase === "naming") {
+              await proceedToNextTurn(roomRef, roomData, "お題が未入力（時間切れ）だったため次のターンへ");
+            } 
+            else if (roomData.gamePhase === "guessing") {
+              await proceedToNextTurn(roomRef, roomData, "回答時間切れ（パス）となったため次のターンへ");
+            }
+          }
+        }
+      }, 1000);
+    }
+
+    async function proceedToNextTurn(roomRef, roomData, reasonText) {
+      const nextDrawer = roomData.players.find(id => id !== roomData.drawer);
+      await updateDoc(roomRef, {
+        gamePhase: "drawing",
+        drawer: nextDrawer,
+        answerWord: "",
+        currentDrawing: "",
+        hintsRevealedIndexes: []
+      });
+      clearInterval(countdownInterval); countdownInterval = null;
+    }
+
+    btnFinishDrawing.addEventListener("click", async () => {
+      clearInterval(countdownInterval); countdownInterval = null;
+      await updateDoc(doc(db, "rooms", activeRoomId), { gamePhase: "naming" });
+    });
+
+    btnSubmitOdai.addEventListener("click", async () => {
+      const val = odaiInput.value.trim();
+      if (!val) return alert("お題を入力してください");
+      if (!isHiragana(val)) return alert("お題はひらがなだけで入力してください！");
+
+      clearInterval(countdownInterval); countdownInterval = null;
+      await updateDoc(doc(db, "rooms", activeRoomId), {
+        answerWord: val, gamePhase: "guessing"
+      });
+      odaiInput.value = "";
+    });
+
+    async function requestHintOpen(index, totalUsed, thisQuestionUsed, roomData) {
+      if (totalUsed >= 10) return alert("ヒントの合計使用回数10回を使い切っています！");
+      if (thisQuestionUsed >= 2) return alert("この問題で使えるヒントは2回までです！");
+
+      const roomRef = doc(db, "rooms", activeRoomId);
+      const newRevealedObj = { uid: currentUid, idx: index };
+      const updatedTotalHints = { ...roomData.hintsUsedTotal, [currentUid]: totalUsed + 1 };
+
+      await updateDoc(roomRef, {
+        hintsRevealedIndexes: arrayUnion(newRevealedObj),
+        hintsUsedTotal: updatedTotalHints
+      });
+    }
+
+    async function submitGuessLogic() {
+      const ans = guessInput.value.trim();
+      if (!ans) return;
+      if (!isHiragana(ans)) return alert("回答はひらがなだけで入力してください！");
+
+      const roomRef = doc(db, "rooms", activeRoomId);
+      const snap = await getDoc(roomRef);
+      const rData = snap.data();
+
+      if (ans === rData.answerWord) {
+        clearInterval(countdownInterval); countdownInterval = null;
+        alert("正解！ポイントを獲得しました！🎉");
+        const currentScore = rData.score[currentUid] || 0;
+        const updatedScore = { ...rData.score, [currentUid]: currentScore + 1 };
+        
+        await updateDoc(roomRef, { score: updatedScore });
+        await proceedToNextTurn(roomRef, rData, `プレイヤーが「${rData.answerWord}」を正解したため`);
+      } else {
+        alert("違います！ハズレです。");
+      }
+      guessInput.value = "";
+    }
+
+    btnSubmitGuess.addEventListener("click", submitGuessLogic);
+    guessInput.addEventListener("keydown", (e) => {
+      if (e.key === "Enter" && !e.isComposing) {
+        e.preventDefault(); submitGuessLogic();
+      }
+    });
+
+    function initCanvasContext() {
+      if (!ctx.strokeStyle || ctx.strokeStyle === "#000000") {
+        ctx.lineWidth = 4; ctx.lineCap = "round"; ctx.strokeStyle = "#333333";
+      }
+    }
+    function getMousePos(canvasDom, e) {
+      const rect = canvasDom.getBoundingClientRect();
+      const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+      const clientY = e.touches ? e.touches[0].clientY : e.clientY;
+      return {
+        x: (clientX - rect.left) * (canvasDom.width / rect.width),
+        y: (clientY - rect.top) * (canvasDom.height / rect.height)
+      };
+    }
+    
+    // ★修正：お絵描きイベントに isCanvasLocked (ロックフラグ) によるガードを追加
+    canvas.addEventListener("mousedown", (e) => { 
+      if (isCanvasLocked) return;
+      isDrawing = true; const p = getMousePos(canvas, e); ctx.beginPath(); ctx.moveTo(p.x, p.y); 
+    });
+    canvas.addEventListener("mousemove", (e) => {
+      if (!isDrawing || isCanvasLocked) return;
+      const p = getMousePos(canvas, e); ctx.lineTo(p.x, p.y); ctx.stroke();
+    });
+    window.addEventListener("mouseup", async () => {
+      if (!isDrawing || isCanvasLocked) return; 
+      isDrawing = false;
+      const dataUrl = canvas.toDataURL("image/webp", 0.3);
+      if (activeRoomId) {
+        await updateDoc(doc(db, "rooms", activeRoomId), { currentDrawing: dataUrl });
+      }
+    });
+    canvas.addEventListener("touchstart", (e) => { 
+      if (isCanvasLocked) return;
+      isDrawing = true; const p = getMousePos(canvas, e); ctx.beginPath(); ctx.moveTo(p.x, p.y); 
+    });
+    canvas.addEventListener("touchmove", (e) => { 
+      if (!isDrawing || isCanvasLocked) return; 
+      e.preventDefault(); const p = getMousePos(canvas, e); ctx.lineTo(p.x, p.y); ctx.stroke(); 
+    });
+    canvas.addEventListener("touchend", () => { isDrawing = false; });
+
+    function clearLocalCanvas() { ctx.clearRect(0, 0, canvas.width, canvas.height); }
+    btnClearCanvas.addEventListener("click", async () => {
+      if (isCanvasLocked) return; // ロック中なら全消しも禁止
+      clearLocalCanvas();
+      if (activeRoomId) await updateDoc(doc(db, "rooms", activeRoomId), { currentDrawing: "" });
+    });
+
+    function setupFriendsListener() {
+      if (unsubscribeFriends) unsubscribeFriends();
+      unsubscribeFriends = onSnapshot(doc(db, "users", currentUid), async (snapshot) => {
+        if (!snapshot.exists()) return;
+        const flist = snapshot.data().friends || [];
+        if (flist.length === 0) {
+          friendListContainer.innerHTML = "<div class='friend-item'>フレンドはいません</div>"; return;
+        }
+        friendListContainer.innerHTML = "";
+        for (const fUid of flist) {
+          const fSnap = await getDoc(doc(db, "users", fUid));
+          if (fSnap.exists()) {
+            const fData = fSnap.data();
+            const fDiv = document.createElement("div");
+            fDiv.className = "friend-item";
+            
+            const safeFTag = fData.userTag || "0000";
+            fDiv.innerHTML = `<div>👤 <span class="name-link" id="flink-${fData.uid}">${fData.username}#${safeFTag}</span></div>`;
+            
+            const ivBtn = document.createElement("button");
+            ivBtn.className = "btn-invite"; ivBtn.textContent = "対戦申込";
+            ivBtn.addEventListener("click", () => sendMatchInvite(fData.uid, fData.username));
+            fDiv.appendChild(ivBtn);
+            friendListContainer.appendChild(fDiv);
+
+            document.getElementById(`flink-${fData.uid}`).addEventListener("click", () => showProfileModal(fData.uid, fData.username, safeFTag));
+          }
+        }
+      });
+    }
+
+    document.getElementById("btn-add-friend").addEventListener("click", async () => {
+      const targetInput = friendSearchInput.value.trim();
+      if (!targetInput) return;
+      
+      if (!targetInput.includes("#")) {
+        return alert("正しい形式（例: なまえ#1234）で入力してください。");
+      }
+
+      const parts = targetInput.split("#");
+      const targetName = parts[0].trim();
+      const targetTag = parts[1].trim();
+
+      try {
+        const q = query(collection(db, "users"), where("username", "==", targetName), where("userTag", "==", targetTag));
+        const querySnapshot = await getDocs(q);
+
+        if (querySnapshot.empty) {
+          return alert("指定されたユーザー名とタグに一致するプレイヤーが見つかりませんでした。");
+        }
+
+        let targetUid = null;
+        querySnapshot.forEach((doc) => { targetUid = doc.id; });
+
+        if (targetUid === currentUid) {
+          return alert("自分自身は追加できません");
+        }
+
+        await updateDoc(doc(db, "users", currentUid), { friends: arrayUnion(targetUid) });
+        alert("フレンドを追加しました！");
+        friendSearchInput.value = "";
+      } catch(e) {
+        console.error(e);
+        alert("フレンド追加処理中にエラーが発生しました。");
+      }
+    });
+
+    function showProfileModal(uid, username, userTag) {
+      const safeTag = userTag || "0000";
+      modalUsername.textContent = `${username}#${safeTag}`;
+      modalUid.textContent = uid;
+      profileModal.classList.remove("hidden");
+
+      btnModalCopyId.onclick = () => {
+        navigator.clipboard.writeText(uid).then(() => {
+          alert("ユーザーID(UID)をクリップボードにコピーしました！");
+        }).catch(err => {
+          console.error("コピー失敗:", err);
+        });
+      };
+
+      if (uid === currentUid) {
+        btnModalAddFriend.classList.add("hidden");
+      } else {
+        btnModalAddFriend.classList.remove("hidden");
+        btnModalAddFriend.onclick = async () => {
+          await updateDoc(doc(db, "users", currentUid), { friends: arrayUnion(uid) });
+          alert("フレンドに追加しました！");
+          profileModal.classList.add("hidden");
+        };
+      }
+    }
+    document.getElementById("btn-modal-close").addEventListener("click", () => profileModal.classList.add("hidden"));
+
+    function setupInviteListener() {
+      if (unsubscribeInvite) unsubscribeInvite();
+      unsubscribeInvite = onSnapshot(collection(db, "users", currentUid, "invites"), (snapshot) => {
+        if (snapshot.empty) { inviteZone.classList.add("hidden"); return; }
+        snapshot.docChanges().forEach(async (change) => {
+          if (change.type === "added") {
+            const data = change.doc.data();
+            inviteMsgText.textContent = `⚔️ ${data.hostName} から対戦申し込みが届きました！`;
+            inviteZone.classList.remove("hidden");
+
+            btnAcceptInvite.onclick = async () => {
+              inviteZone.classList.add("hidden");
+              await deleteDoc(change.doc.ref);
+              const rSnap = await getDoc(doc(db, "rooms", data.roomId));
+              if (!rSnap.exists() || rSnap.data().status === "finished") return alert("既に終了か取り消された部屋です。");
+
+              const rData = rSnap.data();
+              const updatedScore = { ...rData.score, [currentUid]: 0 };
+              const updatedHints = { ...rData.hintsUsedTotal, [currentUid]: 0 };
+              await updateDoc(doc(db, "rooms", data.roomId), {
+                players: arrayUnion(currentUid), status: "playing", score: updatedScore, hintsUsedTotal: updatedHints
+              });
+              isFriendMatchMode = true; activeRoomId = data.roomId;
+              roomTitle.textContent = "フレンドマッチ"; btnLeaveRoom.classList.remove("hidden");
+              showScreen("game"); watchRoom(data.roomId);
+            };
+
+            btnDeclineInvite.onclick = async () => {
+              inviteZone.classList.add("hidden"); await deleteDoc(change.doc.ref);
+              await updateDoc(doc(db, "rooms", data.roomId), { status: "finished", finishReason: "CANCELED" });
+            };
+          }
+        });
+      });
+    }
+
+    function loadGlobalHistory() {
+      const q = query(collection(db, "histories"), where("uids", "array-contains", currentUid));
+      onSnapshot(q, async (snapshot) => {
+        if (snapshot.empty) { historyListContainer.innerHTML = "履歴はありません"; return; }
+        let list = [];
+        snapshot.forEach(d => list.push(d.data()));
+        list.sort((a,b)=> (b.timestamp?.toDate().getTime() || 0) - (a.timestamp?.toDate().getTime() || 0));
+        
+        const top5 = list.slice(0, 5);
+        historyListContainer.innerHTML = "";
+
+        for (const h of top5) {
+          const enemyId = h.uids.find(id => id !== currentUid);
+          if (!enemyId) continue;
+          
+          try {
+            const enemySnap = await getDoc(doc(db, "users", enemyId));
+            const enemyData = enemySnap.data();
+            const enemyName = enemySnap.exists() ? enemyData.username : "不明な対戦相手";
+            const enemyTag = enemySnap.exists() ? (enemyData.userTag || "0000") : "0000";
+            const winText = h.winnerUid === currentUid ? "<span style='color:green;font-weight:bold;'>[WIN]</span>" : "<span style='color:red;font-weight:bold;'>[LOSE]</span>";
+
+            const hDiv = document.createElement("div");
+            hDiv.className = "history-card";
+            const uniqueId = Math.random().toString(36).substr(2,4);
+            hDiv.innerHTML = `${winText} vs <span class="name-link" id="hlink-${enemyId}-${uniqueId}">${enemyName}#${enemyTag}</span>`;
+            historyListContainer.appendChild(hDiv);
+
+            hDiv.querySelector(".name-link").addEventListener("click", () => showProfileModal(enemyId, enemyName, enemyTag));
+          } catch (err) {
+            console.error("履歴内のユーザー取得エラー:", err);
+          }
+        }
+      });
+    }
+
+    btnLeaveRoom.addEventListener("click", async () => {
+      if (!confirm("本当にメニューに戻りますか？（試合中の場合はあなたの敗北扱いになります）")) return;
+      clearInterval(countdownInterval); countdownInterval = null;
+      if (activeRoomId) {
+        const roomRef = doc(db, "rooms", activeRoomId);
+        try {
+          const rSnap = await getDoc(roomRef);
+          if (rSnap.exists()) {
+            const rData = rSnap.data();
+            if (rData.status === "playing") {
+              const enemyUid = rData.players.find(id => id !== currentUid);
+              await updateDoc(roomRef, { status: "finished", finishReason: "対戦相手が途中で切断・ギブアップしたためゲームを終了しました。", winnerUid: enemyUid });
+            } else if (rData.status === "waiting") {
+              await deleteDoc(roomRef);
+            }
+          }
+        } catch(e) {}
+      }
+      if (unsubscribeRoom) { unsubscribeRoom(); unsubscribeRoom = null; }
+      activeRoomId = null; clearLocalCanvas(); showScreen("menu");
+    });
+
+    document.getElementById("btn-to-friend-panel").addEventListener("click", () => showScreen("friend"));
+    document.getElementById("btn-friend-back").addEventListener("click", () => showScreen("menu"));
+
+    function showScreen(type) {
+      loginScreen.classList.add("hidden"); registerScreen.classList.add("hidden"); menuScreen.classList.add("hidden"); gameScreen.classList.add("hidden"); friendScreen.classList.add("hidden");
+      if (type === "login") loginScreen.classList.remove("hidden");
+      if (type === "register") registerScreen.classList.remove("hidden");
+      if (type === "menu") menuScreen.classList.remove("hidden");
+      if (type === "game") gameScreen.classList.remove("hidden");
+      if (type === "friend") friendScreen.classList.remove("hidden");
+    }
+  </script>
+</body>
+</html>
