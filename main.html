@@ -131,21 +131,19 @@
     import { getFirestore, doc, getDoc, setDoc, updateDoc, arrayUnion, onSnapshot, serverTimestamp, deleteDoc } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
 
     const firebaseConfig = {
-  apiKey: "AIzaSyCDh_z0Ol_Dc0wDz3e1NTAnUYVbF3AgQCw",
-  authDomain: "ohekaki.firebaseapp.com",
-  projectId: "ohekaki",
-  storageBucket: "ohekaki.firebasestorage.app",
-  messagingSenderId: "835719435378",
-  appId: "1:835719435378:web:6dccc98680a63e1f775eeb",
-  measurementId: "G-9TJ9SNFVX1"
-};
+      apiKey: "AIzaSyDFeeG0cXom0TBmUngUDbBf_0CqKVRqKwg",
+      authDomain: "oshiritori.firebaseapp.com",
+      projectId: "oshiritori",
+      storageBucket: "oshiritori.firebasestorage.app",
+      messagingSenderId: "947062662188",
+      appId: "1:947062662188:web:362b7ccff6e01a5ecd9d89"
+    };
 
     const app = initializeApp(firebaseConfig);
     const auth = getAuth(app);
     const db = getFirestore(app);
     const provider = new GoogleAuthProvider();
 
-    // お題リスト（ここからランダムに選ばれます。自由に追加してね）
     const odaiList = ["ねこ", "いぬ", "りんご", "くるま", "さかな", "ひまわり", "どらえもん", "すいか", "おにぎり", "てれび", "とり", "きのこ"];
 
     // DOM要素
@@ -177,23 +175,39 @@
     let activeRoomId = null;
     let unsubscribeRoom = null;
     let countdownInterval = null;
-    let remainingTime = 45; // 絵を描く・当てる制限時間（45秒）
+    let remainingTime = 45;
 
-    // お絵描き用変数
-    const ctx = canvas.getContext("2d");
+    // お絵描き用変数（初期化タイミングを遅らせる修正）
+    let ctx = null;
     let isDrawing = false;
+
+    // キャンバス初期化関数
+    function initContext() {
+      if (!ctx) {
+        ctx = canvas.getContext("2d");
+        ctx.lineWidth = 4;
+        ctx.lineCap = "round";
+        ctx.strokeStyle = "#333333";
+      }
+    }
 
     // 認証監視
     onAuthStateChanged(auth, async (user) => {
       loadingStatus.textContent = "";
       if (user) {
         currentUid = user.uid;
-        const userSnap = await getDoc(doc(db, "draw_users", user.uid));
-        if (userSnap.exists()) {
-          userDisplay.textContent = `プレイヤー: ${userSnap.data().username}`;
-          showScreen("menu");
-        } else {
-          showScreen("register");
+        try {
+          const userSnap = await getDoc(doc(db, "draw_users", user.uid));
+          if (userSnap.exists()) {
+            userDisplay.textContent = `プレイヤー: ${userSnap.data().username}`;
+            showScreen("menu");
+          } else {
+            showScreen("register");
+          }
+        } catch (error) {
+          console.error("Firestore接続エラー:", error);
+          alert("データの取得に失敗しました。Firestoreのセキュリティルールを確認してください。");
+          showScreen("login");
         }
       } else {
         currentUid = null;
@@ -221,18 +235,23 @@
       activeRoomId = roomId;
       const randomOdai = odaiList[Math.floor(Math.random() * odaiList.length)];
 
-      await setDoc(doc(db, "draw_rooms", roomId), {
-        roomId: roomId,
-        status: "waiting",
-        players: [currentUid],
-        drawer: currentUid, // 部屋を作った人が最初の描き手
-        answerWord: randomOdai,
-        currentDrawing: "",
-        createdAt: serverTimestamp()
-      });
-      roomTitle.textContent = `部屋ID: ${roomId}`;
-      showScreen("game");
-      watchRoom(roomId);
+      try {
+        await setDoc(doc(db, "draw_rooms", roomId), {
+          roomId: roomId,
+          status: "waiting",
+          players: [currentUid],
+          drawer: currentUid,
+          answerWord: randomOdai,
+          currentDrawing: "",
+          createdAt: serverTimestamp()
+        });
+        roomTitle.textContent = `部屋ID: ${roomId}`;
+        showScreen("game");
+        watchRoom(roomId);
+      } catch (error) {
+        console.error("部屋作成エラー:", error);
+        alert("部屋の作成に失敗しました。");
+      }
     });
 
     // 部屋入室
@@ -240,22 +259,27 @@
       const roomId = roomIdInput.value.trim();
       if (!roomId) return alert("部屋IDを入力してください");
       const roomRef = doc(db, "draw_rooms", roomId);
-      const roomSnap = await getDoc(roomRef);
+      
+      try {
+        const roomSnap = await getDoc(roomRef);
+        if (!roomSnap.exists()) return alert("部屋が見つかりません");
+        const roomData = roomSnap.data();
+        if (roomData.players.length >= 2) return alert("満員です");
 
-      if (!roomSnap.exists()) return alert("部屋が見つかりません");
-      const roomData = roomSnap.data();
-      if (roomData.players.length >= 2) return alert("満員です");
+        await updateDoc(roomRef, {
+          players: arrayUnion(currentUid),
+          status: "playing",
+          startTime: serverTimestamp()
+        });
 
-      await updateDoc(roomRef, {
-        players: arrayUnion(currentUid),
-        status: "playing",
-        startTime: serverTimestamp() // 開始時刻を記録
-      });
-
-      activeRoomId = roomId;
-      roomTitle.textContent = `部屋ID: ${roomId}`;
-      showScreen("game");
-      watchRoom(roomId);
+        activeRoomId = roomId;
+        roomTitle.textContent = `部屋ID: ${roomId}`;
+        showScreen("game");
+        watchRoom(roomId);
+      } catch (error) {
+        console.error("入室エラー:", error);
+        alert("入室処理に失敗しました。");
+      }
     });
 
     // タイマー管理
@@ -270,7 +294,6 @@
 
         if (remainingTime <= 0) {
           clearInterval(countdownInterval);
-          // 時間切れ処理（描き手側だけが終了処理をパブリッシュする）
           if (roomData.drawer === currentUid) {
             await updateDoc(doc(db, "draw_rooms", activeRoomId), {
               status: "finished",
@@ -284,7 +307,7 @@
     // 部屋情報の監視ループ
     function watchRoom(roomId) {
       if (unsubscribeRoom) unsubscribeRoom();
-      unsubscribeRoom = onSnapshot(doc(db, "draw_rooms", roomId), async (snapshot) => {
+      unsubscribeRoom = onSnapshot(doc(db, "draw_rooms", roomId), (snapshot) => {
         if (!snapshot.exists()) return;
         const data = snapshot.data();
 
@@ -298,14 +321,12 @@
           gameStatus.textContent = "ゲーム中！";
           playArea.classList.remove("hidden");
           
-          // タイマーが動いていなければ起動
           if (!countdownInterval) {
             startTimer(data);
           }
 
-          // ロール（描き手か、当て手か）の判定とUI切り替え
           if (data.drawer === currentUid) {
-            // あなたが「描き手」の場合
+            initContext(); // 画面に表示されるここで安全に初期化
             roleIndicator.textContent = "あなたは【描き手】です！";
             roleIndicator.className = "role-badge drawer-role";
             odaiZone.classList.remove("hidden");
@@ -316,7 +337,6 @@
             btnClearCanvas.classList.remove("hidden");
             guessZone.classList.add("hidden");
           } else {
-            // あなたが「当てる側」の場合
             roleIndicator.textContent = "あなたは【当てる側】です！";
             roleIndicator.className = "role-badge guesser-role";
             odaiZone.classList.add("hidden");
@@ -326,11 +346,10 @@
             btnClearCanvas.classList.add("hidden");
             guessZone.classList.remove("hidden");
 
-            // 送られてきた絵のデータをリアタイ同期
             if (data.currentDrawing) {
               drawingMonitor.src = data.currentDrawing;
             } else {
-              drawingMonitor.src = "data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7"; // 空っぽ（透明画像）
+              drawingMonitor.src = "data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7";
             }
           }
         } 
@@ -359,7 +378,6 @@
 
       if (guess === roomData.answerWord) {
         clearInterval(countdownInterval);
-        // 正解時の処理
         await updateDoc(roomRef, {
           status: "finished",
           finishReason: `見事正解！正解は「${roomData.answerWord}」でした！🎉`
@@ -378,14 +396,8 @@
       }
     });
 
-    // ─── お絵描きキャンバスの制御ロジック ───
-    ctx.lineWidth = 4;
-    ctx.lineCap = "round";
-    ctx.strokeStyle = "#333333";
-
     function getMousePos(canvasDom, touchOrMouseEvent) {
       const rect = canvasDom.getBoundingClientRect();
-      // スマホのタッチとPCのマウス両方に対応
       const clientX = touchOrMouseEvent.touches ? touchOrMouseEvent.touches[0].clientX : touchOrMouseEvent.clientX;
       const clientY = touchOrMouseEvent.touches ? touchOrMouseEvent.touches[0].clientY : touchOrMouseEvent.clientY;
       return {
@@ -394,29 +406,26 @@
       };
     }
 
-    // 描き始め
     function startDrawing(e) {
+      if (!ctx) return;
       isDrawing = true;
       const pos = getMousePos(canvas, e);
       ctx.beginPath();
       ctx.moveTo(pos.x, pos.y);
     }
 
-    // 描いている最中
     function draw(e) {
-      if (!isDrawing) return;
+      if (!isDrawing || !ctx) return;
       e.preventDefault();
       const pos = getMousePos(canvas, e);
       ctx.lineTo(pos.x, pos.y);
       ctx.stroke();
     }
 
-    // 描き終わり（Firebaseに画像を同期）
     async function stopDrawing() {
       if (!isDrawing) return;
       isDrawing = false;
       
-      // キャンバスを画質を少し落としたwebpの文字データにする(Firebaseの容量・通信量節約のため)
       const dataUrl = canvas.toDataURL("image/webp", 0.3);
       if (activeRoomId) {
         await updateDoc(doc(db, "draw_rooms", activeRoomId), {
@@ -425,19 +434,18 @@
       }
     }
 
-    // マウスイベント (PC用)
     canvas.addEventListener("mousedown", startDrawing);
     canvas.addEventListener("mousemove", draw);
     window.addEventListener("mouseup", stopDrawing);
 
-    // タッチイベント (スマホ用)
     canvas.addEventListener("touchstart", startDrawing);
     canvas.addEventListener("touchmove", draw);
     window.addEventListener("touchend", stopDrawing);
 
-    // キャンバス全消し
     function clearCanvas() {
-      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      if (ctx) {
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+      }
     }
     btnClearCanvas.addEventListener("click", async () => {
       clearCanvas();
@@ -446,7 +454,6 @@
       }
     });
 
-    // 退室・解散処理
     document.getElementById("btn-leave").addEventListener("click", async () => {
       clearInterval(countdownInterval);
       countdownInterval = null;
@@ -465,7 +472,6 @@
       showScreen("menu");
     });
 
-    // 画面切り替えユーティリティ
     function showScreen(screenType) {
       loginScreen.classList.add("hidden"); registerScreen.classList.add("hidden"); menuScreen.classList.add("hidden"); gameScreen.classList.add("hidden");
       if (screenType === "login") loginScreen.classList.remove("hidden");
