@@ -233,7 +233,7 @@
     <div class="card" style="width: 90%; max-width: 350px; text-align: center; box-shadow: 0 4px 20px rgba(0,0,0,0.15);">
       <h2 style="margin-bottom:10px;">👤 プロフィール</h2>
       <p style="font-size:18px; font-weight:bold; margin:8px 0;" id="modal-username">----</p>
-      <button id="btn-modal-copy-id" style="background-color: #666; font-size: 11px; padding: 4px 8px; width: auto; margin-bottom: 15px; border-radius: 4px;">IDをコピー</button>
+      <button id="btn-modal-copy-id" style="background-color: #666; font-size: 11px; padding: 4px 8px; width: auto; margin-bottom: 15px; border-radius: 4px;">コピー</button>
       <button id="btn-modal-add-friend" style="background-color: #9c27b0; margin-bottom:12px;">この人をフレンドに追加</button>
       <button id="btn-modal-close" style="background-color: #888;">閉じる</button>
     </div>
@@ -325,7 +325,6 @@
     let currentSentInviteId = null;
     let currentSentInviteTargetUid = null;
     let localCurrentPhase = "";
-    let currentActiveProfileTargetUid = null; // ★追加：表示中のターゲットUIDを保持する内部変数
 
     const ctx = canvas.getContext("2d");
     let isDrawing = false;
@@ -761,25 +760,22 @@
       } catch(e) { alert("フレンド追加エラー"); }
     });
 
-    // ─── 修正：UIDを非表示化し、内部変数（currentActiveProfileTargetUid）でコピー同期するセーフロジック ───
     function showProfileModal(uid, username, userTag) {
       const safeTag = userTag || "0000";
+      const fullProfileName = `${username}#${safeTag}`;
       
       const modalUsernameEl = document.getElementById("modal-username");
       if (modalUsernameEl) {
-        modalUsernameEl.textContent = `${username}#${safeTag}`;
+        modalUsernameEl.textContent = fullProfileName;
       }
-      
-      // ★修正ポイント：UI上のmodal-uidへの代入を完全に削除し、安全な内部変数に保持！
-      currentActiveProfileTargetUid = uid;
       
       profileModal.classList.remove("hidden");
 
-      // IDコピーボタンをクリックした際は画面非表示の内部変数から書き出し
+      // ★修正：コピーボタンが押されたとき、UIDではなく「名前#タグ（例：かずのこ#3308）」をクリップボードにコピー
       btnModalCopyId.onclick = () => {
-        if (currentActiveProfileTargetUid) {
-          navigator.clipboard.writeText(currentActiveProfileTargetUid).then(() => { alert("IDコピー成功！"); });
-        }
+        navigator.clipboard.writeText(fullProfileName).then(() => { 
+          alert(`「${fullProfileName}」をクリップボードにコピーしました！`); 
+        });
       };
 
       if (uid === currentUid) { btnModalAddFriend.classList.add("hidden"); } else {
@@ -787,7 +783,7 @@
         btnModalAddFriend.onclick = async () => {
           try {
             await updateDoc(doc(db, "users", currentUid), { friends: arrayUnion(uid) });
-            alert(`「${username}#${safeTag}」をフレンドに追加しました！`); profileModal.classList.add("hidden");
+            alert(`「${fullProfileName}」をフレンドに追加しました！`); profileModal.classList.add("hidden");
           } catch (err) { alert("追加失敗"); }
         };
       }
