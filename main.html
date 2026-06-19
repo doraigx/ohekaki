@@ -154,7 +154,7 @@
           </div>
           <div class="card">
             <h3>フリーモード</h3>
-            <button id="btn-free-match" style="background-color: #34a853;">オートマッチング（自動戦）</button>
+            <button id="btn-free-match" style="background-color: #34a853;">オートマッチング（自動対戦）</button>
           </div>
         </div>
         <div class="pc-right-col">
@@ -233,6 +233,7 @@
     <div class="card" style="width: 90%; max-width: 350px; text-align: center; box-shadow: 0 4px 20px rgba(0,0,0,0.15);">
       <h2 style="margin-bottom:10px;">👤 プロフィール</h2>
       <p style="font-size:18px; font-weight:bold; margin:8px 0;" id="modal-username">----</p>
+      <p style="font-size:11px; color:#bbb; margin-bottom:10px; word-break:break-all;" id="modal-uid">----</p>
       <button id="btn-modal-copy-id" style="background-color: #666; font-size: 11px; padding: 4px 8px; width: auto; margin-bottom: 15px; border-radius: 4px;">IDをコピー</button>
       <button id="btn-modal-add-friend" style="background-color: #9c27b0; margin-bottom:12px;">この人をフレンドに追加</button>
       <button id="btn-modal-close" style="background-color: #888;">閉じる</button>
@@ -761,17 +762,21 @@
       } catch(e) { alert("フレンド追加エラー"); }
     });
 
-    // ─── 修正：プロフィール表示時の引数とDOMノードのバインド不具合を安全ガード ───
+    // ─── 修正：要素の存在チェックと modalUid.textContent への安全なアクセスを補強 ───
     function showProfileModal(uid, username, userTag) {
       const safeTag = userTag || "0000";
       
-      // ★エラー(Cannot set properties of null)回避のために要素を安全に再取得して書き換え
       const modalUsernameEl = document.getElementById("modal-username");
       if (modalUsernameEl) {
         modalUsernameEl.textContent = `${username}#${safeTag}`;
       }
       
-      modalUid.textContent = uid;
+      // ★修正：エラーの原因だったmodalUid要素を安全に再取得してバインド
+      const modalUidEl = document.getElementById("modal-uid");
+      if (modalUidEl) {
+        modalUidEl.textContent = uid;
+      }
+      
       profileModal.classList.remove("hidden");
 
       btnModalCopyId.onclick = () => {
@@ -830,7 +835,6 @@
             const hDiv = document.createElement("div"); hDiv.className = "history-card";
             const uniqueId = Math.random().toString(36).substr(2,4);
             
-            // ★【修正点】[LOSE] vs かずのこ#3671 の、名前とタグを含んだスパン全体（.name-link）をクリックでモーダル開示するように構造を完全統一
             hDiv.innerHTML = `${winText} vs <span class="name-link" id="hlink-${enemyId}-${uniqueId}">${enemyName}#${enemyTag}</span>`;
             historyListContainer.appendChild(hDiv);
 
